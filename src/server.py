@@ -1,3 +1,4 @@
+# src/server.py
 """
 HTTP Server for Multi-Agent Customer Service System
 Provides streaming HTTP endpoints for customer queries

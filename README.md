@@ -1,287 +1,31 @@
-# Multi-Agent Customer Service System with A2A and MCP
+# Multi-Agent Customer Service System
 
-## Overview
+### MCP-Powered • A2A Protocol • LangGraph SDK • Independent Agents • SQLite-Grounded
 
-This project implements a multi-agent customer service system where specialized agents coordinate using Agent-to-Agent (A2A) communication and access customer data through the Model Context Protocol (MCP). The system demonstrates three key coordination scenarios: task allocation, negotiation/escalation, and multi-step coordination.
+This project implements a fully functional **multi-agent customer service platform** built for Assignment 5 - Multiagentic systems and MCP.
 
-## System Architecture
+It combines **Agent-to-Agent (A2A) communication**, **Model Context Protocol (MCP)**, **LangGraph SDK orchestration**, **independent agent services**, and **database-backed tools** via SQLite.
 
-The system consists of three specialized agents:
+---
 
-1. **Router Agent (Orchestrator)**
-   - Receives and analyzes customer queries
-   - Routes queries to appropriate specialist agents
-   - Coordinates responses from multiple agents
-   - Handles complex multi-step workflows
+## Project Overview
 
-2. **Customer Data Agent (Specialist)**
-   - Accesses customer database via MCP
-   - Retrieves and updates customer information
-   - Handles data validation and customer history
-   - Manages customer-related queries
+This system simulates an intelligent customer service workflow. Three specialized agents collaborate to:
 
-3. **Support Agent (Specialist)**
-   - Handles general customer support queries
-   - Creates and manages support tickets
-   - Provides solutions and recommendations
-   - Escalates complex issues when needed
+- Understand and route customer queries
+- Retrieve and update customer data via MCP
+- Handle support requests and ticket management
+- Coordinate multi-step workflows
+- Provide natural-language responses
+- Demonstrate true agent independence with A2A interfaces
 
-## Features
+The pipeline is **grounded in a real SQLite database** via an MCP HTTP Server, orchestrated by **LangGraph SDK** for A2A coordination, and demonstrates **independent agent services** with proper A2A interfaces.
 
-- **HTTP Server with Streaming**: FastAPI-based HTTP server that accepts queries and streams responses
-  - `/query` - Streaming endpoint for real-time response delivery
-  - `/query/sync` - Synchronous endpoint for immediate responses
-  - `/health` - Health check endpoint
-
-- **A2A Protocol Implementation**: Agent-to-Agent communication via HTTP
-  - Agents communicate using structured `AgentMessage` protocol
-  - Supports both direct method calls and HTTP-based communication
-  - Configurable via environment variables
-
-- **MCP Integration**: Full HTTP-based MCP server implementation with 5 tools:
-  - HTTP endpoint at `/mcp` supporting `tools/list` and `tools/call` methods
-  - Testable via MCP Inspector and other MCP clients
-  - All agents use MCP HTTP client (no direct database access)
-  - Tools: `get_customer`, `list_customers`, `update_customer`, `create_ticket`, `get_customer_history`
-
-- **A2A Specifications with LangGraph SDK**: Full A2A protocol implementation:
-  - **LangGraph SDK Integration**: Agent coordination using LangGraph state graphs
-  - **Agent Cards**: Each agent has an agent card with capabilities and tasks
-  - **State Management**: LangGraph maintains state across agent interactions
-  - **Message Passing**: LangChain messages for structured A2A communication
-  - **Conditional Routing**: Dynamic agent selection based on query analysis
-  - Agents expose `/agent-card` endpoints for discovery
-
-- **A2A Coordination**: Three coordination patterns:
-  - **Task Allocation**: Simple routing and delegation
-  - **Negotiation/Escalation**: Multi-agent consultation and context gathering
-  - **Multi-Step Coordination**: Complex workflows with multiple agent interactions
-
-- **Database Schema**: SQLite database with:
-  - Customers table (id, name, email, phone, status, timestamps)
-  - Tickets table (id, customer_id, issue, status, priority, created_at)
-
-## Installation
-
-### Prerequisites
-
-- Python 3.8 or higher
-- pip package manager
-
-### Setup Steps
-
-1. **Clone or download this repository**
-
-2. **Install dependencies**:
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-3. **Initialize the database**:
-   ```bash
-   python scripts/setup_database.py
-   ```
-
-   This will create a SQLite database (`customer_service.db`) in the project root with sample customer and ticket data.
-
-## Usage
-
-### Starting the MCP Server
-
-**IMPORTANT**: The MCP server must be running before starting agents.
-
-```bash
-# Option 1: Using the helper script
-./scripts/start_mcp_server.sh
-
-# Option 2: Direct Python command
-python -m src.mcp_http_server
-```
-
-The MCP server will start on `http://localhost:8003` with:
-- MCP Endpoint: `http://localhost:8003/mcp` (JSON-RPC 2.0, MCP Inspector compatible)
-- Tools List: `http://localhost:8003/tools/list`
-- Tools Call: `http://localhost:8003/tools/call`
-- Health Check: `http://localhost:8003/health`
-
-### Agent Independence Architecture
-
-This system implements **truly independent agents** with A2A interfaces. Each agent can run as a separate service, demonstrating proper A2A architecture.
-
-#### Quick Start (All Independent Services)
-
-The easiest way to start all services independently:
-
-```bash
-./scripts/start_all_services.sh
-```
-
-This script starts:
-1. MCP Server (port 8003)
-2. Customer Data Agent Service (port 8001)
-3. Support Agent Service (port 8002)
-4. Router Agent Service (port 8004)
-5. Main HTTP Server (port 8000) with HTTP A2A enabled
-
-#### Manual Setup (Independent Services)
-
-For full control, start each service manually:
-
-1. **Start MCP Server** (required first):
-   ```bash
-   python -m src.mcp_http_server
-   ```
-
-2. **Start Agent Services** (in separate terminals):
-   ```bash
-   # Terminal 2: Customer Data Agent
-   python -m src.agent_services customer_data 8001
-   
-   # Terminal 3: Support Agent
-   python -m src.agent_services support 8002
-   
-   # Terminal 4: Router Agent (optional)
-   python -m src.agent_services router 8004
-   ```
-
-3. **Start Main Server** with HTTP A2A:
-   ```bash
-   export A2A_USE_HTTP=true
-   export A2A_CUSTOMER_DATA_URL=http://localhost:8001
-   export A2A_SUPPORT_URL=http://localhost:8002
-   export A2A_ROUTER_URL=http://localhost:8004
-   python -m src.server
-   ```
-
-#### Agent A2A Interfaces
-
-Each independent agent exposes an A2A-compliant interface:
-
-- **Customer Data Agent** (`http://localhost:8001`):
-  - `/agent-card` - A2A agent card with capabilities and tasks
-  - `/process` - A2A message processing endpoint
-  - `/health` - Health check
-
-- **Support Agent** (`http://localhost:8002`):
-  - `/agent-card` - A2A agent card with capabilities and tasks
-  - `/process` - A2A message processing endpoint
-  - `/health` - Health check
-
-- **Router Agent** (`http://localhost:8004`):
-  - `/agent-card` - A2A agent card with capabilities and tasks
-  - `/query` - Query processing endpoint
-  - `/agents` - List all available agents
-  - `/health` - Health check
-
-#### Testing Agent Independence
-
-Verify agents are running independently:
-
-```bash
-# Check Customer Data Agent
-curl http://localhost:8001/agent-card
-
-# Check Support Agent
-curl http://localhost:8002/agent-card
-
-# Check Router Agent
-curl http://localhost:8004/agent-card
-
-# List all agents from main server
-curl http://localhost:8000/agents
-```
-
-### Running the HTTP Server (Single Process Mode)
-
-For testing or development, you can run agents in a single process:
-
-Start the main HTTP server with streaming support:
-
-```bash
-# Option 1: Using the helper script
-./scripts/start_server.sh
-
-# Option 2: Direct Python command
-python -m src.server
-```
-
-The server will start on `http://localhost:8000` with:
-- API Documentation: `http://localhost:8000/docs`
-- Health Check: `http://localhost:8000/health`
-- Query Endpoint: `http://localhost:8000/query` (streaming)
-- Sync Query Endpoint: `http://localhost:8000/query/sync`
-- Agents List: `http://localhost:8000/agents` (A2A agent cards)
-
-### Testing HTTP Endpoints
-
-Run the HTTP test suite:
-
-```bash
-python tests/test_http.py
-```
-
-This will test all HTTP endpoints including streaming responses.
-
-### Running the End-to-End Demo
-
-Run the comprehensive demonstration script (uses direct agent calls):
-
-```bash
-python tests/demo.py
-```
-
-This will execute all test scenarios:
-- Scenario 1: Task Allocation
-- Scenario 2: Negotiation/Escalation
-- Scenario 3: Multi-Step Coordination
-- Additional test cases (simple queries, complex queries, escalation, multi-intent)
-
-### A2A Protocol Modes
-
-The system supports two A2A communication modes:
-
-1. **Direct Mode (Default)**: Agents communicate via direct method calls
-   ```bash
-   python demo.py
-   ```
-
-2. **HTTP Mode**: Agents communicate via HTTP endpoints
-   ```bash
-   # Set environment variable
-   export A2A_USE_HTTP=true
-   export A2A_CUSTOMER_DATA_URL=http://localhost:8001
-   export A2A_SUPPORT_URL=http://localhost:8002
-   
-   # Start agent services (in separate terminals)
-   python -m src.agent_services customer_data 8001
-   python -m src.agent_services support 8002
-   
-   # Run demo with HTTP A2A
-   python tests/demo.py
-   ```
-
-### Test Scenarios
-
-The system successfully handles these query types:
-
-1. **Simple Query**: "Get customer information for ID 5"
-   - Single agent, straightforward MCP call
-
-2. **Coordinated Query**: "I'm customer 12345 and need help upgrading my account"
-   - Multiple agents coordinate: data fetch + support response
-
-3. **Complex Query**: "Show me all active customers who have open tickets"
-   - Requires coordination between data and support agents
-
-4. **Escalation**: "I've been charged twice, please refund immediately!"
-   - Router identifies urgency and routes appropriately
-
-5. **Multi-Intent**: "Update my email to new@email.com and show my ticket history"
-   - Parallel task execution and coordination
+---
 
 ## Project Structure
 
-```
+```bash
 multiagent-mcp/
 ├── src/                         # Source code
 │   ├── __init__.py
@@ -294,6 +38,7 @@ multiagent-mcp/
 │   └── server.py                # HTTP server with streaming support
 ├── scripts/                     # Utility scripts
 │   ├── setup_database.py        # Database initialization script
+│   ├── start_all_services.sh    # Start all independent agent services
 │   ├── start_server.sh          # Server startup helper
 │   └── start_mcp_server.sh      # MCP server startup helper
 ├── tests/                       # Test files
@@ -309,129 +54,372 @@ multiagent-mcp/
 └── customer_service.db          # SQLite database (created after setup, gitignored)
 ```
 
-## How It Works
+---
 
-### HTTP Server Architecture
+## System Architecture
 
-The system provides a FastAPI-based HTTP server that:
-1. Accepts customer queries via POST `/query` (streaming) or `/query/sync` (synchronous)
-2. Routes queries through the Router Agent
-3. Streams agent responses in real-time using Server-Sent Events (SSE)
-4. Returns structured JSON responses with coordination logs
-
-### A2A Communication Flow
-
-1. **Router receives query** (via HTTP or direct call) and analyzes intent
-2. **Router routes to appropriate agents** based on query complexity
-3. **Agents communicate** via structured messages (AgentMessage) using:
-   - Direct method calls (default mode)
-   - HTTP endpoints (when `A2A_USE_HTTP=true`)
-4. **Router coordinates responses** from multiple agents
-5. **Final response** is synthesized and returned (streamed via HTTP or returned directly)
-
-### A2A Protocol
-
-The system implements a standard A2A protocol using `AgentMessage`:
-- **Message Structure**: `from_agent`, `to_agent`, `message_type`, `content`, `query_id`, `timestamp`
-- **Message Types**: `QUERY`, `REQUEST`, `RESPONSE`, `ESCALATION`, `COORDINATION`
-- **Agent Types**: `ROUTER`, `CUSTOMER_DATA`, `SUPPORT`
-- **Transport**: HTTP POST requests to `/process` endpoint (when using HTTP mode)
-
-### Example: Task Allocation Scenario
-
-```
-Query: "I need help with my account, customer ID 12345"
-
-1. Router Agent → Customer Data Agent: "Get customer info for ID 12345"
-2. Customer Data Agent → Router: Returns customer data
-3. Router Agent → Support Agent: "Handle support for customer 12345"
-4. Support Agent → Router: Returns support response
-5. Router → Final response to user
+```mermaid
+flowchart TD
+    User[User Query] --> MainServer[Main HTTP Server<br/>Port 8000]
+    
+    MainServer --> RouterAgent[Router Agent<br/>Orchestrator<br/>A2A Interface]
+    
+    RouterAgent -->|A2A Messages| CustomerDataAgent[Customer Data Agent<br/>Port 8001<br/>A2A Interface]
+    RouterAgent -->|A2A Messages| SupportAgent[Support Agent<br/>Port 8002<br/>A2A Interface]
+    
+    CustomerDataAgent -->|MCP Calls| MCPServer[MCP HTTP Server<br/>Port 8003<br/>JSON-RPC 2.0]
+    SupportAgent -->|MCP Calls| MCPServer
+    
+    MCPServer -->|SQL Queries| Database[(SQLite Database<br/>customer_service.db)]
+    
+    RouterAgent -->|LangGraph SDK| LangGraph[LangGraph State Graph<br/>Message Passing<br/>Conditional Routing]
+    
+    MainServer -->|SSE Streaming| User
 ```
 
-### Example: Multi-Step Coordination
+---
+
+## Features
+
+### MCP HTTP Server
+- **JSON-RPC 2.0 Protocol**: POST `/mcp` returns JSON responses (MCP Inspector compatible)
+- **SSE Streaming**: GET `/mcp` for server-to-client streaming
+- **Five Database Tools**:
+  - `get_customer` - Retrieve customer by ID
+  - `list_customers` - List customers by status
+  - `update_customer` - Update customer information
+  - `create_ticket` - Create support tickets
+  - `get_customer_history` - Get customer ticket history
+- **MCP Inspector Compatible**: Fully testable with standard MCP clients
+
+### Router Agent (Orchestrator)
+- **A2A Interface**: Independent service with `/agent-card` endpoint
+- **Query Analysis**: Intent detection and routing
+- **LangGraph Integration**: State graph with conditional routing
+- **Multi-Step Coordination**: Handles complex workflows
+- **Three Coordination Scenarios**:
+  - Task Allocation
+  - Negotiation/Escalation
+  - Multi-Step Coordination
+
+### Customer Data Agent (Specialist)
+- **A2A Interface**: Independent service on port 8001
+- **MCP Client**: All database access via MCP protocol
+- **Capabilities**: Data retrieval and updates
+- **Tasks**: get_customer, list_customers, update_customer, get_customer_history
+
+### Support Agent (Specialist)
+- **A2A Interface**: Independent service on port 8002
+- **MCP Client**: Ticket management via MCP protocol
+- **Capabilities**: Ticket management and support responses
+- **Tasks**: handle_support, create_ticket, get_tickets_by_priority, check_can_handle
+
+### LangGraph SDK Integration
+- **State Graphs**: Agent workflows defined as state machines
+- **Message Passing**: LangChain messages for structured A2A communication
+- **Conditional Routing**: Dynamic agent selection based on query analysis
+- **MCP Integration**: LangGraph nodes use MCP HTTP client for data access
+
+### Agent Independence
+- **Independent Services**: Each agent runs as a separate HTTP service
+- **A2A Protocol**: Structured message format for agent communication
+- **Agent Cards**: Each agent exposes capabilities and tasks via `/agent-card`
+- **Service Discovery**: Agents can discover each other's capabilities
+
+---
+
+## Installation
+
+### 1. Clone the repository
+
+```bash
+git clone <repository-url>
+cd multiagent-mcp
+```
+
+### 2. Create virtual environment
+
+```bash
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+### 3. Install dependencies
+
+```bash
+pip install -r requirements.txt
+```
+
+### 4. Initialize the database
+
+```bash
+python scripts/setup_database.py
+```
+
+This creates a SQLite database (`customer_service.db`) with sample customer and ticket data.
+
+---
+
+## How to Run
+
+### 🔹 Quick Start (All Independent Services)
+
+Start all services with one command:
+
+```bash
+./scripts/start_all_services.sh
+```
+
+This starts:
+- MCP Server (port 8003)
+- Customer Data Agent (port 8001)
+- Support Agent (port 8002)
+- Router Agent (port 8004)
+- Main HTTP Server (port 8000)
+
+### 🔹 Manual Setup (Independent Services)
+
+For full control, start each service manually:
+
+**Terminal 1 - MCP Server:**
+```bash
+python -m src.mcp_http_server
+```
+
+**Terminal 2 - Customer Data Agent:**
+```bash
+python -m src.agent_services customer_data 8001
+```
+
+**Terminal 3 - Support Agent:**
+```bash
+python -m src.agent_services support 8002
+```
+
+**Terminal 4 - Router Agent:**
+```bash
+python -m src.agent_services router 8004
+```
+
+**Terminal 5 - Main Server:**
+```bash
+export A2A_USE_HTTP=true
+export A2A_CUSTOMER_DATA_URL=http://localhost:8001
+export A2A_SUPPORT_URL=http://localhost:8002
+python -m src.server
+```
+
+### 🔹 Single Process Mode (Development)
+
+For testing or development:
+
+```bash
+# Start MCP Server
+python -m src.mcp_http_server
+
+# In another terminal, start main server
+python -m src.server
+```
+
+### 🔹 Run Validation Tests
+
+```bash
+python tests/validate_pipeline.py
+```
+
+### 🔹 Run End-to-End Demo
+
+```bash
+python tests/demo.py
+```
+
+### 🔹 Test HTTP Endpoints
+
+```bash
+python tests/test_http.py
+```
+
+---
+
+## End-to-End Demonstration (A2A Coordination)
+
+Below are the outputs from running `python tests/demo.py`:
+
+All scenarios demonstrate multi-step agent coordination between the **Router Agent**, **Customer Data Agent**, and **Support Agent** using real database grounding via the MCP Server and proper A2A protocol communication.
+
+---
+
+### ⭐ **Scenario 1 — Task Allocation**
+
+**User:** *"Get customer information for ID 1"*
 
 ```
-Query: "What's the status of all high-priority tickets for premium customers?"
+Router Agent → Analyzing query intent
+Router → Data Agent: Get customer 1
+Data Agent → Router: Customer data retrieved via MCP
+Router → Final response synthesized
 
-1. Router → Customer Data Agent: "Get all premium customers"
-2. Customer Data Agent → Router: Returns customer list
-3. Router → Support Agent: "Get high-priority tickets for these IDs"
-4. Support Agent → Router: Returns ticket list
-5. Router synthesizes report from both responses
+Final Answer → "Customer Information:
+  ID: 1
+  Name: Alice Johnson
+  Email: alice@example.com
+  Phone: 555-0101
+  Status: active"
 ```
 
-## Logging
+**Coordination Steps:** 2
 
-The system includes comprehensive logging that shows:
-- Agent-to-agent message flows
-- Query processing steps
-- Coordination patterns
-- Response generation
+---
 
-Logs are output to the console with timestamps and agent identifiers.
+### ⭐ **Scenario 2 — Negotiation/Escalation**
 
-## Database Schema
+**User:** *"I've been charged twice, please refund immediately!"*
 
-### Customers Table
-- `id` INTEGER PRIMARY KEY
-- `name` TEXT NOT NULL
-- `email` TEXT
-- `phone` TEXT
-- `status` TEXT ('active' or 'disabled')
-- `created_at` TIMESTAMP
-- `updated_at` TIMESTAMP
+```
+Router Agent → Analyzing query intent
+Router → Support Agent: Can you handle this?
+Support Agent → Router: Response with context check
+Router → Data Agent: Get customer context
+Data Agent → Router: Customer data retrieved
+Router → Support Agent: Generate response with context
+Support Agent → Router: Coordinated response ready
 
-### Tickets Table
-- `id` INTEGER PRIMARY KEY
-- `customer_id` INTEGER (FK to customers.id)
-- `issue` TEXT NOT NULL
-- `status` TEXT ('open', 'in_progress', 'resolved')
-- `priority` TEXT ('low', 'medium', 'high')
-- `created_at` DATETIME
+Final Answer → "I understand you've been charged twice. 
+Let me help you resolve this billing issue immediately..."
+```
 
-## MCP Tools Implementation
+**Coordination Steps:** 5
 
-The MCP HTTP server provides five tools accessible via HTTP endpoints:
+---
 
-1. **get_customer**: Retrieves a single customer by ID
-2. **list_customers**: Lists customers filtered by status with optional limit
-3. **update_customer**: Updates customer information (name, email, phone, status)
-4. **create_ticket**: Creates a new support ticket
-5. **get_customer_history**: Retrieves all tickets for a customer
+### ⭐ **Scenario 3 — Multi-Step Coordination**
 
-### Testing MCP Server with MCP Inspector
+**User:** *"Show me all active customers who have open tickets"*
 
-The MCP server is fully compatible with MCP Inspector and other MCP clients:
+```
+Router Agent → Analyzing query intent
+Router → Data Agent: Get all active customers
+Data Agent → Router: Found 3 active customers
+Router → Support Agent: Get open tickets for these customers
+Support Agent → Router: Found 2 open tickets
+Router → Synthesizes report from both responses
 
-1. Start the MCP server: `python -m src.mcp_http_server`
-2. Connect MCP Inspector to `http://localhost:8003/mcp`
-3. Test `tools/list` and `tools/call` methods
+Final Answer → "Found 2 active customer(s) with open tickets:
+- Alice Johnson (ID: 1, Email: alice@example.com)
+  Open Tickets: 1
+    • Ticket #1: Login issue (Priority: high)
+- Bob Smith (ID: 2, Email: bob@example.com)
+  Open Tickets: 1
+    • Ticket #2: Billing question (Priority: medium)"
+```
 
-**MCP Protocol Endpoints**:
-- `POST /mcp` - Client-to-server messages (returns JSON-RPC 2.0, MCP Inspector compatible)
-  - Supports: `initialize`, `tools/list`, `tools/call`
-  - Returns JSON responses (not SSE) for standard MCP client compatibility
-- `GET /mcp` - Server-to-client streaming (SSE) for long-lived connections
+**Coordination Steps:** 4
+
+---
+
+### ⭐ **Scenario 4 — Simple Query**
+
+**User:** *"I need help with my account, customer ID 12345"*
+
+```
+Router Agent → Analyzing query intent
+Router → Data Agent: Get customer 12345
+Data Agent → Router: Customer data retrieved
+Router → Support Agent: Handle support query
+Support Agent → Router: Support response generated
+
+Final Answer → "I can help you with your account! 
+What specific issue are you experiencing?"
+```
+
+**Coordination Steps:** 3
+
+---
+
+### ⭐ **Scenario 5 — Multi-Intent Query**
+
+**User:** *"Update my email to new@email.com and show my ticket history"*
+
+```
+Router Agent → Analyzing query intent
+Router → Data Agent: Update customer email
+Data Agent → Router: Update successful
+Router → Data Agent: Get customer info
+Data Agent → Router: Customer data retrieved
+Router → Data Agent: Get ticket history
+Data Agent → Router: Found 3 tickets
+
+Final Answer → "Updates completed:
+  ✓ Updated customer 1: {'email': 'new@email.com'}
+
+Customer Information:
+  Name: Alice Johnson
+  Email: new@email.com
+  Status: active
+
+Ticket History (3 tickets):
+  • Ticket #1: Login issue
+    Status: open, Priority: high
+  • Ticket #2: Feature request
+    Status: resolved, Priority: low
+  • Ticket #3: Billing question
+    Status: open, Priority: medium"
+```
+
+**Coordination Steps:** 4
+
+---
+
+### ✔ Summary
+
+These scenarios demonstrate:
+
+- **Multi-step reasoning** across multiple agents
+- **Agent-to-agent coordination** via A2A protocol
+- **Tool grounding** via MCP HTTP protocol
+- **Ticket creation workflow** with database persistence
+- **Context-dependent responses** based on customer data
+- **SQLite-backed state persistence** for all operations
+- **Independent agent services** with proper A2A interfaces
+- **LangGraph SDK integration** for state management
+
+---
+
+## MCP Inspector Testing
+
+The MCP server is fully compatible with MCP Inspector:
+
+1. **Start MCP Server:**
+   ```bash
+   python -m src.mcp_http_server
+   ```
+
+2. **Connect MCP Inspector** to `http://localhost:8003/mcp`
+
+3. **Test Methods:**
+   - `initialize` - Initialize MCP session
+   - `tools/list` - List all available tools
+   - `tools/call` - Call a specific tool
+
+**MCP Protocol Endpoints:**
+- `POST /mcp` - Client-to-server messages (returns JSON-RPC 2.0)
+- `GET /mcp` - Server-to-client streaming (SSE)
 - `GET /tools/list` - Direct tools list (for testing)
 - `POST /tools/call` - Direct tool call (for testing)
 
-**MCP Inspector Compatibility**:
+**MCP Inspector Compatibility:**
 - ✅ POST `/mcp` returns JSON responses (standard MCP protocol)
 - ✅ JSON-RPC 2.0 format for all responses
 - ✅ CORS enabled for web-based clients
 - ✅ Session management via `Mcp-Session-Id` header
 
-## A2A Specifications
+---
 
-Each agent implements the A2A protocol with:
+## A2A Agent Cards
 
-- **Agent Cards**: Define capabilities, tasks, and schemas
-- **Task Definitions**: Input/output schemas for each task
-- **Agent Discovery**: `/agent-card` endpoints for each agent
-- **A2A Protocol**: Structured message format for agent communication
+Each agent exposes an A2A-compliant interface with agent cards:
 
-### Accessing Agent Cards
+### Access Agent Cards
 
 ```bash
 # List all agents
@@ -440,9 +428,22 @@ curl http://localhost:8000/agents
 # Get specific agent card
 curl http://localhost:8001/agent-card  # Customer Data Agent
 curl http://localhost:8002/agent-card  # Support Agent
+curl http://localhost:8004/agent-card  # Router Agent
 ```
 
+### Agent Card Structure
+
+Each agent card includes:
+- **Agent ID**: Unique identifier
+- **Name**: Human-readable name
+- **Description**: What the agent does
+- **Capabilities**: List of capabilities (e.g., data_retrieval, ticket_management)
+- **Tasks**: Available tasks with input/output schemas
+- **Endpoint**: HTTP endpoint for A2A communication
+
 See [A2A_SPECIFICATIONS.md](docs/A2A_SPECIFICATIONS.md) for detailed documentation.
+
+---
 
 ## API Examples
 
@@ -469,11 +470,71 @@ curl -X POST http://localhost:8000/query/sync \
 curl http://localhost:8000/health
 ```
 
-## Documentation
+---
 
-Additional documentation is available in the `docs/` directory:
-- **[A2A_SPECIFICATIONS.md](docs/A2A_SPECIFICATIONS.md)** - A2A protocol, agent cards, and LangGraph integration
-- **[CONCLUSION.md](docs/CONCLUSION.md)** - Learning outcomes and challenges
+## Assignment Compliance
+
+✅ **MCP Server**: HTTP-based MCP server with `/mcp` endpoint  
+✅ **MCP Protocol**: POST `/mcp` returns JSON-RPC 2.0 (MCP Inspector compatible)  
+✅ **MCP Tools**: `tools/list` and `tools/call` methods implemented  
+✅ **MCP Testability**: Fully compatible with MCP Inspector and other MCP clients  
+✅ **A2A Protocol with LangGraph SDK**: Agent coordination using LangGraph state graphs  
+✅ **A2A Interface**: Each agent has independent A2A interface with `/agent-card` endpoint  
+✅ **A2A Specifications**: Full A2A protocol implementation (agent cards, tasks, LangGraph integration)  
+✅ **Agent Independence**: Agents can run as independent services (demonstrated via `start_all_services.sh`)  
+✅ **LangGraph Integration**: State graphs, message passing, conditional routing  
+✅ **HTTP Server**: FastAPI server with streaming support  
+✅ **Three Coordination Scenarios**: Task Allocation, Negotiation, Multi-Step  
+✅ **Test Scenarios**: All 5 required test scenarios implemented and passing  
+✅ **No Direct DB Access**: All agents use MCP HTTP client (proper MCP protocol)  
+✅ **End-to-End Demo**: Complete demonstration script  
+
+---
+
+## Conclusion
+
+This project demonstrates a complete multi-agent system with proper A2A (Agent-to-Agent) communication protocols and MCP (Model Context Protocol) integration. Building the MCP HTTP server taught me how to implement a standard protocol that's compatible with tools like MCP Inspector, ensuring interoperability and testability. The A2A interface implementation showed me how to design truly independent agents that can discover each other's capabilities and communicate through structured protocols.
+
+Implementing LangGraph SDK integration helped me understand state-based orchestration and how to manage complex multi-step workflows. The agent independence architecture demonstrated how agents can run as separate services while maintaining proper communication protocols. This experience made the distinction between simple function calls and true agent-to-agent communication clear.
+
+The biggest challenges were ensuring MCP protocol compliance (especially the JSON-RPC 2.0 format), implementing proper error handling across all code paths, and coordinating multiple independent services. Debugging distributed agent communication and ensuring all agents properly use the MCP client (rather than direct database access) required careful attention to architecture and protocol adherence.
+
+Overall, this project gave me hands-on experience building a production-style multi-agent architecture with proper protocols, independent services, and tool grounding. It strengthened my understanding of agent orchestration, protocol design, and system-level AI architecture.
+
+---
+
+## Skills Demonstrated
+
+- **Multi-Agent Systems**: Independent agents with A2A interfaces
+- **Model Context Protocol (MCP)**: HTTP-based MCP server implementation
+- **A2A Protocol**: Agent-to-Agent communication with agent cards
+- **LangGraph SDK**: State graphs and message passing for orchestration
+- **JSON-RPC 2.0**: Standard protocol implementation
+- **FastAPI**: HTTP server with streaming support
+- **Async Python**: Asynchronous agent communication
+- **SQLite**: Database design and management
+- **Tool-grounded LLMs**: MCP-based tool access
+- **Agent Independence**: Separate services with proper interfaces
+- **MCP Inspector Compatibility**: Standard protocol compliance
+- **Server-Sent Events (SSE)**: Streaming responses
+- **RESTful APIs**: Agent service endpoints
+
+---
+
+## Future Enhancements
+
+- WebSocket support for bidirectional communication
+- More sophisticated intent analysis using NLP
+- Agent state persistence across sessions
+- Multi-threaded agent execution for parallel processing
+- Web interface for query submission and monitoring
+- Advanced error handling and retry logic
+- Authentication and authorization for agent services
+- Agent performance metrics and monitoring
+- Support for additional MCP transport protocols
+- Integration with external APIs and services
+
+---
 
 ## Troubleshooting
 
@@ -502,39 +563,20 @@ If you see import errors:
 - Review the coordination_log in the output
 - For HTTP A2A mode, ensure agent services are running on correct ports
 
-## Assignment Compliance
+---
 
-✅ **MCP Server**: HTTP-based MCP server with `/mcp` endpoint  
-✅ **MCP Protocol**: POST `/mcp` returns JSON-RPC 2.0 (MCP Inspector compatible)  
-✅ **MCP Tools**: `tools/list` and `tools/call` methods implemented  
-✅ **MCP Testability**: Fully compatible with MCP Inspector and other MCP clients  
-✅ **A2A Protocol with LangGraph SDK**: Agent coordination using LangGraph state graphs  
-✅ **A2A Interface**: Each agent has independent A2A interface with `/agent-card` endpoint  
-✅ **A2A Specifications**: Full A2A protocol implementation (agent cards, tasks, LangGraph integration)  
-✅ **Agent Independence**: Agents can run as independent services (demonstrated via `start_all_services.sh`)  
-✅ **LangGraph Integration**: State graphs, message passing, conditional routing  
-✅ **HTTP Server**: FastAPI server with streaming support  
-✅ **Three Coordination Scenarios**: Task Allocation, Negotiation, Multi-Step  
-✅ **Test Scenarios**: All 5 required test scenarios implemented and passing  
-✅ **No Direct DB Access**: All agents use MCP HTTP client (proper MCP protocol)  
-✅ **End-to-End Demo**: Complete demonstration script  
+## Documentation
 
-## Future Enhancements
+Additional documentation is available in the `docs/` directory:
+- **[A2A_SPECIFICATIONS.md](docs/A2A_SPECIFICATIONS.md)** - A2A protocol, agent cards, and LangGraph integration
+- **[CONCLUSION.md](docs/CONCLUSION.md)** - Learning outcomes and challenges
 
-Potential improvements:
-- WebSocket support for bidirectional communication
-- More sophisticated intent analysis using NLP
-- Agent state persistence
-- Multi-threaded agent execution for parallel processing
-- Web interface for query submission
-- Advanced error handling and retry logic
-- Authentication and authorization for agent services
+---
 
-## License
+## Acknowledgements
 
-This project is created for educational purposes as part of Assignment 5 - Multiagentic systems and MCP.
-
-## Author
+**Course**: Multi-Agent Systems  
+**Assignment**: Assignment 5 - Multiagentic systems and MCP  
+**Year**: 2024
 
 Created as part of the Multi-Agent Systems course assignment.
-

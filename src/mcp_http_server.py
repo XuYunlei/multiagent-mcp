@@ -1,3 +1,4 @@
+# src/mcp_http_server.py
 """
 MCP HTTP Server for Customer Service System
 Implements HTTP/SSE transport with tools/list and tools/call endpoints

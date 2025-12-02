@@ -1,3 +1,4 @@
+# src/mcp_http_client.py
 """
 MCP HTTP Client for accessing MCP server tools
 Replaces direct database access with proper MCP protocol calls

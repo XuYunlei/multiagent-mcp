@@ -1,3 +1,4 @@
+# src/a2a_specs.py
 """
 A2A (Agent-to-Agent) Specifications
 Implements agent cards, tasks, and capabilities per A2A protocol
