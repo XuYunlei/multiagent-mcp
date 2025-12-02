@@ -6,58 +6,86 @@ Tests the streaming and synchronous query endpoints
 import requests
 import json
 import time
+import logging
+
+# Suppress verbose logging for cleaner output
+logging.getLogger().setLevel(logging.ERROR)
+logging.getLogger('src').setLevel(logging.ERROR)
+logging.getLogger('src.agents').setLevel(logging.ERROR)
+logging.getLogger('src.mcp_http_client').setLevel(logging.ERROR)
 
 BASE_URL = "http://localhost:8000"
 
 def test_health():
     """Test health endpoint"""
-    print("\n" + "=" * 80)
-    print("Testing Health Endpoint")
-    print("=" * 80)
+    print("\n" + "─" * 80)
+    print("🔍 Testing Health Endpoint")
+    print("─" * 80)
     try:
-        response = requests.get(f"{BASE_URL}/health")
-        print(f"Status: {response.status_code}")
-        print(f"Response: {json.dumps(response.json(), indent=2)}")
-        return response.status_code == 200
+        response = requests.get(f"{BASE_URL}/health", timeout=5)
+        if response.status_code == 200:
+            data = response.json()
+            print(f"✅ Status: {response.status_code}")
+            print(f"   Service: {data.get('service', 'N/A')}")
+            print(f"   A2A Framework: {data.get('a2a_framework', 'N/A')}")
+            print(f"   MCP Transport: {data.get('mcp_transport', 'N/A')}")
+            return True
+        else:
+            print(f"❌ Status: {response.status_code}")
+            return False
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
         return False
 
 def test_sync_query(query: str):
     """Test synchronous query endpoint"""
-    print("\n" + "=" * 80)
-    print(f"Testing Sync Query: {query}")
-    print("=" * 80)
+    print("\n" + "─" * 80)
+    print(f"🔍 Testing Sync Query")
+    print("─" * 80)
+    print(f"📝 Query: {query[:70]}{'...' if len(query) > 70 else ''}")
     try:
         response = requests.post(
             f"{BASE_URL}/query/sync",
             json={"query": query},
             timeout=30
         )
-        print(f"Status: {response.status_code}")
-        result = response.json()
-        print(f"\nQuery: {result.get('query')}")
-        print(f"Scenario: {result.get('result', {}).get('scenario', 'N/A')}")
-        print(f"Success: {result.get('result', {}).get('success', False)}")
-        
-        if result.get('result', {}).get('coordination_log'):
-            print("\nA2A Coordination Log:")
-            for i, log_entry in enumerate(result['result']['coordination_log'], 1):
-                print(f"  {i}. {log_entry}")
-        
-        if result.get('result', {}).get('response'):
-            print(f"\nResponse:\n{result['result']['response']}")
-        
-        return response.status_code == 200
+        if response.status_code == 200:
+            result = response.json().get('result', {})
+            scenario = result.get('scenario', 'N/A')
+            success = result.get('success', False)
+            
+            print(f"✅ Status: {response.status_code}")
+            print(f"🎯 Scenario: {scenario}")
+            print(f"{'✅' if success else '❌'} Success: {success}")
+            
+            if result.get('coordination_log'):
+                print(f"\n🔄 A2A Coordination Steps ({len(result['coordination_log'])} steps):")
+                for i, log_entry in enumerate(result['coordination_log'], 1):
+                    print(f"   {i}. {log_entry}")
+            
+            if result.get('response'):
+                response_text = result['response']
+                print(f"\n💬 Response:")
+                if '\n' in response_text:
+                    for line in response_text.split('\n'):
+                        print(f"   {line}")
+                else:
+                    print(f"   {response_text}")
+            
+            return True
+        else:
+            print(f"❌ Status: {response.status_code}")
+            return False
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
         return False
 
 def test_streaming_query(query: str):
     """Test streaming query endpoint"""
-    print("\n" + "=" * 80)
-    print(f"Testing Streaming Query: {query}")
-    print("=" * 80)
+    print("\n" + "─" * 80)
+    print(f"🔍 Testing Streaming Query")
+    print("─" * 80)
+    print(f"📝 Query: {query[:70]}{'...' if len(query) > 70 else ''}")
     try:
         response = requests.post(
             f"{BASE_URL}/query",
@@ -65,35 +93,48 @@ def test_streaming_query(query: str):
             stream=True,
             timeout=30
         )
-        print(f"Status: {response.status_code}")
-        print("\nStreaming Response:")
-        print("-" * 80)
-        
-        for line in response.iter_lines():
-            if line:
-                line_str = line.decode('utf-8')
-                if line_str.startswith('data: '):
-                    data_str = line_str[6:]  # Remove 'data: ' prefix
-                    try:
-                        data = json.loads(data_str)
-                        if data.get('type') == 'coordination':
-                            print(f"\nCoordination Log: {data.get('log', [])}")
-                        elif data.get('type') == 'customer_info':
-                            print(f"\nCustomer Info: {json.dumps(data.get('data', {}), indent=2)}")
-                        elif data.get('type') == 'response':
-                            print(f"\nResponse:\n{data.get('data', '')}")
-                        elif data.get('status'):
-                            print(f"\nStatus: {data.get('status')} - {data.get('message', '')}")
-                            if data.get('status') == 'complete':
-                                print(f"Success: {data.get('success')}")
-                                print(f"Scenario: {data.get('scenario', 'N/A')}")
-                    except json.JSONDecodeError:
-                        print(f"Raw: {data_str}")
-        
-        print("-" * 80)
-        return response.status_code == 200
+        if response.status_code == 200:
+            print(f"✅ Status: {response.status_code}")
+            print(f"\n📡 Streaming Response:")
+            print("─" * 80)
+            
+            final_status = None
+            for line in response.iter_lines():
+                if line:
+                    line_str = line.decode('utf-8')
+                    if line_str.startswith('data: '):
+                        data_str = line_str[6:]  # Remove 'data: ' prefix
+                        try:
+                            data = json.loads(data_str)
+                            if data.get('type') == 'coordination':
+                                log = data.get('log', [])
+                                if log:
+                                    print(f"🔄 Coordination: {log[-1] if isinstance(log, list) else log}")
+                            elif data.get('type') == 'customer_info':
+                                customer = data.get('data', {})
+                                if customer:
+                                    print(f"👤 Customer: {customer.get('name', 'N/A')} (ID: {customer.get('id', 'N/A')})")
+                            elif data.get('type') == 'response':
+                                response_text = data.get('data', '')
+                                if response_text:
+                                    print(f"💬 Response: {response_text[:100]}{'...' if len(response_text) > 100 else ''}")
+                            elif data.get('status'):
+                                status = data.get('status')
+                                if status == 'complete':
+                                    final_status = data
+                                    print(f"✅ {status.capitalize()}: Success={data.get('success')}, Scenario={data.get('scenario', 'N/A')}")
+                                elif status == 'processing':
+                                    print(f"⏳ Processing: {data.get('message', '')}")
+                        except json.JSONDecodeError:
+                            pass
+            
+            print("─" * 80)
+            return True
+        else:
+            print(f"❌ Status: {response.status_code}")
+            return False
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"❌ Error: {e}")
         return False
 
 def check_server_running():
@@ -110,26 +151,26 @@ def check_server_running():
 
 def main():
     """Run all tests"""
-    print("\n" + "=" * 80)
+    print("\n" + "═" * 80)
     print("  HTTP SERVER TEST SUITE")
-    print("=" * 80)
+    print("═" * 80)
     
     # Check if server is running
     if not check_server_running():
         print("\n⚠️  WARNING: Server doesn't appear to be running or wrong server detected!")
-        print("   Please start the server with: python server.py")
-        print("   Or use: ./start_server.sh")
+        print("   Please start the server with: python -m src.server")
+        print("   Or use: ./scripts/start_server.sh")
         print("\n   Waiting 5 seconds for you to start the server...")
         time.sleep(5)
         
         # Check again
         if not check_server_running():
-            print("\n✗ Server still not responding. Please start the server and try again.")
+            print("\n❌ Server still not responding. Please start the server and try again.")
             return
         else:
-            print("✓ Server detected!")
+            print("✅ Server detected!")
     else:
-        print("\n✓ Server is running and responding correctly")
+        print("\n✅ Server is running and responding correctly")
     
     results = []
     
@@ -152,23 +193,24 @@ def main():
     results.append(("Streaming: Simple query", test_streaming_query("Get customer information for ID 5")))
     
     # Summary
-    print("\n" + "=" * 80)
+    print("\n" + "═" * 80)
     print("  TEST SUMMARY")
-    print("=" * 80)
+    print("═" * 80)
     
     successful = sum(1 for _, result in results if result)
     total = len(results)
     
-    print(f"\nTotal Tests: {total}")
-    print(f"Successful: {successful}")
-    print(f"Failed: {total - successful}")
+    print(f"\n📈 Test Statistics:")
+    print(f"   • Total Tests: {total}")
+    print(f"   • Successful: {successful} ✅")
+    print(f"   • Failed: {total - successful}")
     
-    print("\nTest Results:")
+    print(f"\n📋 Test Results:")
     for name, result in results:
-        status = "✓" if result else "✗"
-        print(f"  {status} {name}")
+        status = "✅" if result else "❌"
+        print(f"   {status} {name}")
     
-    print("\n" + "=" * 80)
+    print("\n" + "═" * 80 + "\n")
 
 if __name__ == "__main__":
     main()
