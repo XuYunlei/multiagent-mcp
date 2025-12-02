@@ -72,7 +72,8 @@ def test_sync_query(query: str):
                 else:
                     print(f"   {response_text}")
             
-            return True
+            # Return True only if HTTP is 200 AND query processing succeeded
+            return success
         else:
             print(f"❌ Status: {response.status_code}")
             return False
@@ -129,7 +130,8 @@ def test_streaming_query(query: str):
                             pass
             
             print("─" * 80)
-            return True
+            # Return True only if streaming succeeded AND query processing succeeded
+            return final_status is not None and final_status.get('success', False) if final_status else False
         else:
             print(f"❌ Status: {response.status_code}")
             return False
@@ -149,28 +151,46 @@ def check_server_running():
     except:
         return False
 
+def check_mcp_server():
+    """Check if MCP server is running"""
+    try:
+        response = requests.get("http://localhost:8003/health", timeout=2)
+        return response.status_code == 200
+    except:
+        return False
+
 def main():
     """Run all tests"""
     print("\n" + "═" * 80)
     print("  HTTP SERVER TEST SUITE")
     print("═" * 80)
     
-    # Check if server is running
-    if not check_server_running():
-        print("\n⚠️  WARNING: Server doesn't appear to be running or wrong server detected!")
+    # Check if servers are running
+    main_server_ok = check_server_running()
+    mcp_server_ok = check_mcp_server()
+    
+    if not main_server_ok:
+        print("\n⚠️  WARNING: Main server doesn't appear to be running!")
         print("   Please start the server with: python -m src.server")
-        print("   Or use: ./scripts/start_server.sh")
+        print("   Or use: ./scripts/start_all_services.sh")
         print("\n   Waiting 5 seconds for you to start the server...")
         time.sleep(5)
         
         # Check again
         if not check_server_running():
-            print("\n❌ Server still not responding. Please start the server and try again.")
+            print("\n❌ Main server still not responding. Please start the server and try again.")
             return
         else:
-            print("✅ Server detected!")
+            print("✅ Main server detected!")
     else:
-        print("\n✅ Server is running and responding correctly")
+        print("\n✅ Main server is running and responding correctly")
+    
+    if not mcp_server_ok:
+        print("\n⚠️  WARNING: MCP server is not running on port 8003!")
+        print("   Some tests may fail. Start MCP server with: python -m src.mcp_http_server")
+        print("   Or use: ./scripts/start_all_services.sh")
+    else:
+        print("✅ MCP server is running on port 8003")
     
     results = []
     
@@ -179,7 +199,7 @@ def main():
     
     # Test scenarios
     test_queries = [
-        "Get customer information for ID 5",
+        "Get customer information for ID 1",  # Use ID 1 which exists in database
         "I need help with my account, customer ID 12345",
         "I want to cancel my subscription but I'm having billing issues",
         "What's the status of all high-priority tickets for premium customers?",
@@ -190,7 +210,7 @@ def main():
         time.sleep(1)  # Small delay between requests
     
     # Test streaming
-    results.append(("Streaming: Simple query", test_streaming_query("Get customer information for ID 5")))
+    results.append(("Streaming: Simple query", test_streaming_query("Get customer information for ID 1")))
     
     # Summary
     print("\n" + "═" * 80)

@@ -71,17 +71,34 @@ fi
 
 # Start Main HTTP Server with HTTP A2A enabled
 echo "5. Starting Main HTTP Server on port 8000..."
+# Check if port 8000 is already in use
+if lsof -Pi :8000 -sTCP:LISTEN -t >/dev/null 2>&1 ; then
+    echo "   ⚠️  Port 8000 is already in use. Killing existing process..."
+    lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+    sleep 1
+fi
 export A2A_USE_HTTP=true
 export A2A_CUSTOMER_DATA_URL=http://localhost:8001
 export A2A_SUPPORT_URL=http://localhost:8002
 export A2A_ROUTER_URL=http://localhost:8004
 python -m src.server > /tmp/main_server.log 2>&1 &
 MAIN_PID=$!
-sleep 2
+sleep 3
 if ps -p $MAIN_PID > /dev/null; then
-    echo "   ✅ Main Server started (PID: $MAIN_PID)"
+    # Also check if server is actually responding
+    sleep 1
+    if curl -s http://localhost:8000/health > /dev/null 2>&1; then
+        echo "   ✅ Main Server started (PID: $MAIN_PID)"
+    else
+        echo "   ❌ Main Server process started but not responding"
+        echo "   Check logs: /tmp/main_server.log"
+        cleanup
+        exit 1
+    fi
 else
     echo "   ❌ Failed to start Main Server"
+    echo "   Check logs: /tmp/main_server.log"
+    tail -20 /tmp/main_server.log 2>/dev/null || true
     cleanup
     exit 1
 fi

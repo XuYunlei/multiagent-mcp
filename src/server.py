@@ -116,17 +116,40 @@ async def query_sync(query: dict):
     
     customer_query = query["query"]
     
-    # Use LangGraph A2A coordinator if available, otherwise fallback to direct agent calls
-    if LANGGRAPH_AVAILABLE and langgraph_coordinator:
-        result = langgraph_coordinator.coordinate(customer_query)
-    else:
-        result = router_agent.process_query(customer_query)
-    
-    return {
-        "query": customer_query,
-        "result": result,
-        "a2a_framework": "LangGraph SDK" if LANGGRAPH_AVAILABLE else "Custom A2A"
-    }
+    try:
+        # Use LangGraph A2A coordinator if available, otherwise fallback to direct agent calls
+        if LANGGRAPH_AVAILABLE and langgraph_coordinator is not None:
+            try:
+                result = langgraph_coordinator.coordinate(customer_query)
+                return {
+                    "query": customer_query,
+                    "result": result,
+                    "a2a_framework": "LangGraph SDK"
+                }
+            except Exception as e:
+                import logging
+                logger = logging.getLogger(__name__)
+                logger.warning(f"LangGraph coordinator failed, falling back to RouterAgent: {e}")
+                # Fallback to router agent if LangGraph fails
+                result = router_agent.process_query(customer_query)
+                return {
+                    "query": customer_query,
+                    "result": result,
+                    "a2a_framework": "Custom A2A (LangGraph fallback)"
+                }
+        else:
+            # Use RouterAgent directly
+            result = router_agent.process_query(customer_query)
+            return {
+                "query": customer_query,
+                "result": result,
+                "a2a_framework": "Custom A2A"
+            }
+    except Exception as e:
+        import logging
+        logger = logging.getLogger(__name__)
+        logger.error(f"Error processing query: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Error processing query: {str(e)}")
 
 
 @app.get("/health")

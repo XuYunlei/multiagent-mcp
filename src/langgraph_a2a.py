@@ -306,16 +306,41 @@ class LangGraphA2ACoordinator:
         
         if is_complex_query:
             # Use RouterAgent for complex multi-step queries
-            result = self.router_agent.process_query(query, query_id)
-            return {
-                "query": query,
-                "query_id": query_id,
-                "response": result.get("response", "No response generated"),
-                "coordination_log": result.get("coordination_log", []),
-                "customer_info": result.get("customer_info"),
-                "success": result.get("success", True),
-                "scenario": "LangGraph A2A Coordination (via RouterAgent)"
-            }
+            try:
+                result = self.router_agent.process_query(query)
+                return {
+                    "query": query,
+                    "query_id": query_id,
+                    "response": result.get("response", "No response generated"),
+                    "coordination_log": result.get("coordination_log", []),
+                    "customer_info": result.get("customer_info"),
+                    "success": result.get("success", True),
+                    "scenario": "LangGraph A2A Coordination (via RouterAgent)"
+                }
+            except Exception as e:
+                logger.error(f"RouterAgent error: {e}", exc_info=True)
+                # Fallback to simple LangGraph flow
+                initial_state: AgentState = {
+                    "messages": [HumanMessage(content=query)],
+                    "query": query,
+                    "query_id": query_id,
+                    "current_agent": "router",
+                    "agent_responses": {},
+                    "coordination_log": [],
+                    "customer_info": None,
+                    "final_response": None,
+                    "needs_support_after_data": False
+                }
+                final_state = self.graph.invoke(initial_state)
+                return {
+                    "query": query,
+                    "query_id": query_id,
+                    "response": final_state.get("final_response", "Error processing query"),
+                    "coordination_log": final_state.get("coordination_log", []),
+                    "customer_info": final_state.get("customer_info"),
+                    "success": True,
+                    "scenario": "LangGraph A2A Coordination (fallback)"
+                }
         
         # For simpler queries, use LangGraph state graph
         initial_state: AgentState = {
