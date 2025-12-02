@@ -310,7 +310,8 @@ class SupportAgent:
         response_text = ""
         actions = []
         
-        if "upgrade" in query_lower or "premium" in query_lower:
+        # Check for specific intents first (more specific before general)
+        if "upgrade" in query_lower or "upgrading" in query_lower or "premium" in query_lower:
             response_text = "I can help you upgrade your account! Our premium tier includes priority support, advanced features, and exclusive benefits."
             actions.append("Account upgrade assistance provided")
         
@@ -318,12 +319,12 @@ class SupportAgent:
             response_text = "I understand you'd like to cancel your subscription. Before we proceed, let me address any concerns you might have. What's the main reason for cancellation?"
             actions.append("Cancellation inquiry handled")
         
-        elif "help" in query_lower or "support" in query_lower:
-            response_text = "I'm here to help! What specific issue are you experiencing? I can assist with account management, technical problems, billing questions, and more."
-        
-        elif "billing" in query_lower:
+        elif "billing" in query_lower or "refund" in query_lower or "charge" in query_lower:
             response_text = "I can help with billing questions. Let me look into your account details to provide accurate information."
             actions.append("Billing inquiry routed")
+        
+        elif "help" in query_lower or "support" in query_lower:
+            response_text = "I'm here to help! What specific issue are you experiencing? I can assist with account management, technical problems, billing questions, and more."
         
         else:
             response_text = "I'm here to assist you. How can I help today?"
@@ -484,12 +485,20 @@ class RouterAgent:
         if "update" in query_lower and "ticket history" in query_lower:
             return self._handle_multi_intent_update(query, intent, query_id, coordination_log)
         
+        # Check for premium/ticket queries specifically (Scenario 3)
+        if ("premium" in query_lower or "high-priority" in query_lower) and ("ticket" in query_lower or "status" in query_lower):
+            return self._handle_multi_step(query, intent, query_id, coordination_log)
+        
         # Scenario 2: Negotiation/Escalation
         if "billing" in " ".join(intent["intents"]) or "cancel" in query.lower():
             return self._handle_negotiation(query, intent, query_id, coordination_log)
         
-        # Scenario 3: Multi-Step Coordination
-        if intent["is_complex"] and len(intent["intents"]) > 1:
+        # For queries with customer_id and support needs, use task allocation (not multi-step)
+        if intent.get("customer_id") and intent.get("needs_support") and not intent.get("is_complex"):
+            return self._handle_task_allocation(query, intent, query_id, coordination_log)
+        
+        # Scenario 3: Multi-Step Coordination (only for specific premium/ticket queries)
+        if intent["is_complex"] and len(intent["intents"]) > 1 and "ticket_query" in intent.get("intents", []):
             return self._handle_multi_step(query, intent, query_id, coordination_log)
         
         # Fallback to task allocation
