@@ -1,0 +1,18 @@
+# HTTP Server and A2A Communication
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+requests>=2.31.0
+
+# LangGraph SDK for A2A agent coordination
+langgraph>=0.2.0
+langchain-core>=0.3.0
+
+# MCP Server (optional - for full MCP server implementation)
+# mcp>=0.1.0
+
+# Core dependencies (built-in with Python, listed for reference)
+# sqlite3 - built-in
+# asyncio - built-in
+# logging - built-in
+# json - built-in
+
