@@ -21,13 +21,15 @@ except ImportError:
         pass
     class END:
         pass
+    def add_messages(left, right):
+        return left + right
     BaseMessage = object
     HumanMessage = object
     AIMessage = object
     SystemMessage = object
 
 from .a2a_specs import get_agent_card, AgentCard
-from .agents import AgentType, MessageType, AgentMessage
+from .agents import AgentType, MessageType, AgentMessage, SupportAgent, RouterAgent, CustomerDataAgent
 from .mcp_http_client import MCPHTTPClient
 
 logger = logging.getLogger(__name__)
@@ -43,6 +45,7 @@ class AgentState(TypedDict):
     coordination_log: List[str]
     customer_info: Optional[Dict[str, Any]]
     final_response: Optional[str]
+    needs_support_after_data: bool
 
 
 class LangGraphA2ACoordinator:
@@ -59,6 +62,10 @@ class LangGraphA2ACoordinator:
             self.mcp_client.initialize()
         except Exception as e:
             logger.warning(f"MCP initialization failed: {e}")
+        # Create agent instances for proper response generation
+        self.customer_data_agent = CustomerDataAgent(self.mcp_client)
+        self.support_agent = SupportAgent(self.mcp_client)
+        self.router_agent = RouterAgent(self.customer_data_agent, self.support_agent)
         self.graph = self._build_graph()
         self.logger = logging.getLogger(f"{__name__}.{self.__class__.__name__}")
     
@@ -84,7 +91,15 @@ class LangGraphA2ACoordinator:
                 "end": END
             }
         )
-        workflow.add_edge("customer_data", "synthesize")
+        # After customer_data, check if we need support too
+        workflow.add_conditional_edges(
+            "customer_data",
+            self._after_customer_data_decision,
+            {
+                "support": "support",
+                "synthesize": "synthesize"
+            }
+        )
         workflow.add_edge("support", "synthesize")
         workflow.add_edge("synthesize", END)
         
@@ -98,26 +113,36 @@ class LangGraphA2ACoordinator:
         query_lower = query.lower()
         
         # Analyze intent
-        needs_customer_data = any(word in query_lower for word in ["customer", "account", "id", "info"])
-        needs_support = any(word in query_lower for word in ["help", "support", "issue", "ticket"])
+        needs_customer_data = any(word in query_lower for word in ["customer", "account", "id", "info", "information"])
+        needs_support = any(word in query_lower for word in ["help", "support", "issue", "ticket", "upgrade", "cancel", "billing"])
         
         # Extract customer ID
         import re
         customer_id = None
         id_match = re.search(r'(?:id|customer)\s+(\d+)', query_lower)
+        if not id_match:
+            # Try to find standalone numbers
+            id_match = re.search(r'\b(\d+)\b', query)
         if id_match:
             customer_id = int(id_match.group(1))
         
         state["coordination_log"].append(f"Router → Analyzing query intent")
         state["current_agent"] = "router"
         
-        # Determine routing
+        # Determine routing - if both customer data and support needed, get customer data first
         if needs_customer_data and customer_id:
             state["coordination_log"].append(f"Router → Routing to Customer Data Agent")
             state["messages"].append(SystemMessage(content=f"Get customer data for ID {customer_id}"))
+            # Store that we also need support
+            if needs_support:
+                state["needs_support_after_data"] = True
         elif needs_support:
             state["coordination_log"].append(f"Router → Routing to Support Agent")
             state["messages"].append(SystemMessage(content=f"Handle support query: {query}"))
+        elif needs_customer_data:
+            # Customer data query without specific ID
+            state["coordination_log"].append(f"Router → Routing to Customer Data Agent")
+            state["messages"].append(SystemMessage(content=f"Handle customer data query: {query}"))
         else:
             state["coordination_log"].append(f"Router → Direct response")
         
@@ -133,9 +158,16 @@ class LangGraphA2ACoordinator:
         if last_message and isinstance(last_message, SystemMessage):
             content = last_message.content
             if "customer data" in content.lower() or "id" in content.lower():
-                # Extract customer ID
+                # Extract customer ID from message or original query
                 import re
                 id_match = re.search(r'id\s+(\d+)', content.lower())
+                if not id_match:
+                    # Try extracting from original query
+                    query = state.get("query", "")
+                    id_match = re.search(r'(?:id|customer)\s+(\d+)', query.lower())
+                    if not id_match:
+                        id_match = re.search(r'\b(\d+)\b', query)
+                
                 if id_match:
                     customer_id = int(id_match.group(1))
                     state["coordination_log"].append(f"Data Agent → Fetching customer {customer_id} via MCP")
@@ -166,14 +198,17 @@ class LangGraphA2ACoordinator:
         
         state["coordination_log"].append(f"Support Agent → Generating response")
         
-        # Generate support response
-        response = f"I can help you with: {query}"
-        if customer_info:
-            response += f" (Customer: {customer_info.get('name', 'N/A')})"
+        # Use actual SupportAgent to generate proper response
+        support_response = self.support_agent._generate_support_response(query, customer_info)
+        response_text = support_response.get("response", "I'm here to assist you. How can I help today?")
         
-        state["agent_responses"]["support"] = {"response": response}
+        state["agent_responses"]["support"] = {
+            "response": response_text,
+            "actions": support_response.get("actions", []),
+            "customer_tier": support_response.get("customer_tier", "")
+        }
         state["current_agent"] = "support"
-        state["messages"].append(AIMessage(content=response))
+        state["messages"].append(AIMessage(content=response_text))
         
         return state
     
@@ -183,16 +218,39 @@ class LangGraphA2ACoordinator:
         
         responses = state["agent_responses"]
         coordination_log = state["coordination_log"]
+        query = state.get("query", "")
         
-        # Combine responses
+        # Combine responses intelligently
         final_parts = []
+        
+        # If we have customer data, format it nicely
         if "customer_data" in responses:
             customer = responses["customer_data"]
-            final_parts.append(f"Customer Information: {customer.get('name', 'N/A')}")
+            if isinstance(customer, dict) and customer.get("id"):
+                # Format customer information
+                customer_info_lines = [
+                    f"Customer Information:",
+                    f"  ID: {customer.get('id')}",
+                    f"  Name: {customer.get('name', 'N/A')}",
+                    f"  Email: {customer.get('email', 'N/A')}",
+                    f"  Phone: {customer.get('phone', 'N/A')}",
+                    f"  Status: {customer.get('status', 'N/A')}"
+                ]
+                final_parts.append("\n".join(customer_info_lines))
         
+        # Support response should be the main response
         if "support" in responses:
             support = responses["support"]
-            final_parts.append(support.get("response", ""))
+            support_response = support.get("response", "")
+            if support_response:
+                final_parts.append(support_response)
+        
+        # If no specific responses, generate a helpful default
+        if not final_parts:
+            if "customer_data" in responses:
+                final_parts.append("Customer information retrieved successfully.")
+            else:
+                final_parts.append("I'm here to assist you. How can I help today?")
         
         state["final_response"] = "\n".join(final_parts) if final_parts else "Response generated"
         state["coordination_log"].append("Synthesize → Final response ready")
@@ -200,12 +258,14 @@ class LangGraphA2ACoordinator:
         return state
     
     def _route_decision(self, state: AgentState) -> str:
-        """Decision function for routing"""
+        """Decision function for initial routing"""
         messages = state["messages"]
         if not messages:
             return "end"
         
         last_message = messages[-1]
+        
+        # Initial routing based on message content
         if isinstance(last_message, SystemMessage):
             content = last_message.content.lower()
             if "customer data" in content or "id" in content:
@@ -215,13 +275,49 @@ class LangGraphA2ACoordinator:
         
         return "synthesize"
     
+    def _after_customer_data_decision(self, state: AgentState) -> str:
+        """Decision function after customer data is retrieved"""
+        # Check if we flagged that support is needed
+        if state.get("needs_support_after_data", False):
+            return "support"
+        
+        query = state.get("query", "").lower()
+        
+        # If query needs support (help, upgrade, cancel, etc.), route to support
+        if any(word in query for word in ["help", "support", "upgrade", "upgrading", "cancel", "billing", "issue", "problem", "ticket"]):
+            return "support"
+        else:
+            return "synthesize"
+    
     def coordinate(self, query: str, query_id: Optional[str] = None) -> Dict[str, Any]:
-        """Coordinate agents using LangGraph"""
+        """Coordinate agents using LangGraph with RouterAgent for complex queries"""
         if not LANGGRAPH_AVAILABLE:
             raise ImportError("LangGraph SDK is required")
         
         query_id = query_id or datetime.now().isoformat()
         
+        # For complex queries, use RouterAgent's full logic
+        # LangGraph provides the A2A framework, but RouterAgent handles the actual coordination
+        query_lower = query.lower()
+        is_complex_query = any(phrase in query_lower for phrase in [
+            "all active customers", "open tickets", "high-priority tickets", "premium customers",
+            "update", "ticket history", "all tickets"
+        ])
+        
+        if is_complex_query:
+            # Use RouterAgent for complex multi-step queries
+            result = self.router_agent.process_query(query, query_id)
+            return {
+                "query": query,
+                "query_id": query_id,
+                "response": result.get("response", "No response generated"),
+                "coordination_log": result.get("coordination_log", []),
+                "customer_info": result.get("customer_info"),
+                "success": result.get("success", True),
+                "scenario": "LangGraph A2A Coordination (via RouterAgent)"
+            }
+        
+        # For simpler queries, use LangGraph state graph
         initial_state: AgentState = {
             "messages": [HumanMessage(content=query)],
             "query": query,
@@ -230,7 +326,8 @@ class LangGraphA2ACoordinator:
             "agent_responses": {},
             "coordination_log": [],
             "customer_info": None,
-            "final_response": None
+            "final_response": None,
+            "needs_support_after_data": False
         }
         
         # Run the graph
