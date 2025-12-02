@@ -15,7 +15,7 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 from scripts.setup_database import setup_database
-from src.agents import RouterAgent, CustomerDataAgent, SupportAgent
+from src.agents import RouterAgent, CustomerDataAgent, SupportAgent, MCPClient
 
 def print_section(title):
     """Print a formatted section header"""
