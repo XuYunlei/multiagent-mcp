@@ -482,44 +482,6 @@ curl http://localhost:8000/health
 
 ---
 
-## Assignment Compliance
-
-### MCP Protocol Requirements ✅
-
-✅ **MCP Server**: HTTP-based MCP server with well-defined `/mcp` endpoint  
-✅ **MCP Protocol**: POST `/mcp` returns JSON-RPC 2.0 responses (MCP Inspector compatible)  
-✅ **SSE Streaming**: GET `/mcp` provides server-to-client streaming  
-✅ **MCP Tools**: `tools/list` and `tools/call` methods fully implemented  
-✅ **MCP Testability**: Fully compatible with MCP Inspector and other independent MCP clients  
-✅ **All 5 Required Tools**: get_customer, list_customers, update_customer, create_ticket, get_customer_history
-
-### A2A Protocol Requirements ✅
-
-✅ **A2A Interface**: Each agent has independent A2A interface with `/agent-card` endpoint  
-✅ **A2A Specifications**: Full A2A protocol implementation (agent cards, tasks, capabilities)  
-✅ **LangGraph SDK**: Agent coordination using LangGraph state graphs and message passing  
-✅ **Agent Cards**: All agents expose capabilities and tasks via structured agent cards  
-✅ **Task Schemas**: Input/output schemas defined for all agent tasks
-
-### Agent Independence Requirements ✅
-
-✅ **Independent Services**: Agents can run as separate HTTP services (demonstrated via `start_all_services.sh`)  
-✅ **A2A Communication**: Agents communicate via structured A2A message protocol  
-✅ **Service Discovery**: Agents can discover each other's capabilities via agent cards  
-✅ **No Direct DB Access**: All agents use MCP HTTP client (proper MCP protocol compliance)
-
-### Additional Features ✅
-
-✅ **HTTP Server**: FastAPI server with SSE streaming support  
-✅ **Three Coordination Scenarios**: Task Allocation, Negotiation/Escalation, Multi-Step Coordination  
-✅ **Test Scenarios**: All 5 required test scenarios implemented and passing  
-✅ **End-to-End Demo**: Complete demonstration script (`tests/demo.py`)  
-✅ **Validation Tests**: Comprehensive pipeline validation (`tests/validate_pipeline.py`) - **7/7 tests passing**
-
-**Verification:** Run `python tests/validate_pipeline.py` to verify all compliance requirements.  
-
----
-
 ## Conclusion
 
 This project demonstrates a complete multi-agent system with proper A2A (Agent-to-Agent) communication protocols and MCP (Model Context Protocol) integration. Building the MCP HTTP server taught me how to implement a standard protocol that's compatible with tools like MCP Inspector, ensuring interoperability and testability. The A2A interface implementation showed me how to design truly independent agents that can discover each other's capabilities and communicate through structured protocols.
@@ -606,6 +568,6 @@ Additional documentation is available in the `docs/` directory:
 
 **Course**: Multi-Agent Systems  
 **Assignment**: Assignment 5 - Multiagentic systems and MCP  
-**Year**: 2024
+**Year**: 2025
 
 Created as part of the Multi-Agent Systems course assignment.
